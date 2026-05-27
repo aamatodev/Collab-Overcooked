@@ -39,13 +39,13 @@ def make_agent(alg: str, mdp, layout, **gptargs):
 
         if alg == "LLMPair":
             mlam = MediumLevelPlanner.from_pickle_or_compute(
-                mdp, MLAM_PARAMS, force_compute=True
+                mdp, MLAM_PARAMS, force_compute=False
             ).ml_action_manager
             agent = LLMAgents(mlam, layout, **gptargs)
 
         elif alg == "Greedy":
             mlam = MediumLevelPlanner.from_pickle_or_compute(
-                mdp, MLAM_PARAMS, force_compute=True
+                mdp, MLAM_PARAMS, force_compute=False
             )
             agent = GreedyHumanModel(mlam)
 

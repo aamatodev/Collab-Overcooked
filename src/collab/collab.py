@@ -52,9 +52,16 @@ class LLMPair(object):
         self.proxy = "http://10.29.202.138:7890"
 
     def load_openai_keys(self):
-        with open(openai_key_file, "r") as f:
-            context = f.read()
-        self.openai_api_keys = context.split("\n")
+        env_key = os.environ.get("LLM_API_KEY", "")
+        if env_key:
+            self.openai_api_keys = [env_key]
+            return
+        try:
+            with open(openai_key_file, "r") as f:
+                context = f.read()
+            self.openai_api_keys = [k for k in context.split("\n") if k.strip()] or ["local"]
+        except FileNotFoundError:
+            self.openai_api_keys = ["local"]
 
     def openai_api_key(self):
         if self.key_rotation:
@@ -2015,7 +2022,7 @@ class LLMAgents(LLMPair):
         Chooses motion goal that has the lowest cost action plan.
         Returns the motion goal itself and the first action on the plan.
         """
-        min_cost = np.Inf
+        min_cost = np.inf
         best_action, best_goal = None, None
         for goal in motion_goals:
             action_plan, _, plan_cost = self.mlam.motion_planner.get_plan(
@@ -2034,7 +2041,7 @@ class LLMAgents(LLMPair):
         Chooses motion goal that has the lowest cost action plan.
         Returns the motion goal itself and the first action on the plan.
         """
-        min_cost = np.Inf
+        min_cost = np.inf
         best_action, best_goal = None, None
         for goal in motion_goals:
             action_plan, plan_cost = self.real_time_planner(

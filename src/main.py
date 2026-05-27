@@ -81,11 +81,17 @@ def main(variant):
     start_time = time.time()
     results = []
 
-    actor_num = 0
     actor_list = ['chef','assistant']
-    for i in range(episode):  
-        
+    for i in range(episode):
+        actor_num = 0  # reset per episode so actor_list indices stay valid
         agents_list = []
+
+        # Reset the global statistics dict for each episode so logs are independent
+        statistics_dict['total_timestamp'].clear()
+        statistics_dict['total_order_finished'].clear()
+        statistics_dict['total_score'] = 0
+        statistics_dict['total_action_list'] = [[], []]
+        statistics_dict['content'].clear()
 
         current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         save_dir = f"{args.statistics_save_dir}/{args.gpt_model}/{args.order}"

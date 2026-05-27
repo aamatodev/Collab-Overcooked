@@ -17,11 +17,18 @@ from .web_util import output_to_port, listen_to_server, username_record
 
 cwd = os.getcwd()
 gpt4_key_file = os.path.join(cwd, "openai_key.txt")
-# deepseek_key_file = os.path.join(cwd, "deepseek_key.txt")
 
-with open(gpt4_key_file, "r") as f:
-    context = f.read()
-openai_key = context.split("\n")[0]
+# Prefer LLM_API_KEY env var; fall back to openai_key.txt; default to "local"
+_env_key = os.environ.get("LLM_API_KEY", "")
+if _env_key:
+    openai_key = _env_key
+else:
+    try:
+        with open(gpt4_key_file, "r") as f:
+            context = f.read()
+        openai_key = context.split("\n")[0] or "local"
+    except FileNotFoundError:
+        openai_key = "local"
 
 # global statistics
 statistics_dict = {
@@ -190,10 +197,10 @@ class Module(object):
         if "gpt" in self.model or "deepseek" in self.model.lower():
             openai.api_key = openai_key
 
-        # Open source models
+        # Open source models — prefer LLM_BASE_URL env var over constructor arg
         else:
-            openai.api_base = self.local_server_api
-            openai.api_key = "token-abc123"
+            openai.api_base = os.environ.get("LLM_BASE_URL", self.local_server_api)
+            openai.api_key = os.environ.get("LLM_API_KEY", "local")
 
         rec = self.K
         messages = self.query_messages(rethink)
@@ -306,12 +313,11 @@ class Module(object):
                 else:
                     client = OpenAI(api_key=openai.api_key, base_url=openai.api_base)
                     response = client.chat.completions.create(
-                        model=self.model_dirname
-                        + self.model,  # home_path+"/models/"+self.model,
+                        model=os.environ.get("LLM_MODEL", self.model),
                         messages=messages,
                         temperature=temperature,
                     )
-                    encoder_name = "llama3"
+                    encoder_name = "local"
 
                 get_response = True
 
@@ -326,12 +332,9 @@ class Module(object):
             encoding = tiktoken.encoding_for_model(encoder_name)
             tokens = encoding.encode(rs)
             token_count = len(tokens)
-        if "llama3" in encoder_name:
-            tokenizer = AutoTokenizer.from_pretrained(
-                "../lib/llama_tokenizer", local_files_only=True
-            )
-            tokens = tokenizer.encode(rs)
-            token_count = len(tokens)
+        else:
+            # approximate token count for local models (avoids loading a per-model tokenizer)
+            token_count = len(rs.split())
         return rs, token_count
 
     def parse_response(self, response):
@@ -466,29 +469,10 @@ COOKING STEPs:
 
 
 def if_two_sentence_similar_meaning(key, proxy, sentence1, sentence2):
-    with open(gpt4_key_file, "r") as f:
-        context = f.read()
-    key = context.split("\n")[0]
-    openai.api_key = key
-    if sentence1 == "":
-        sentence1 = " "
-    if sentence2 == "":
-        sentence2 = " "
-    get_response = False
-    while not get_response:
-        try:
-            client = OpenAI(api_key=key)
-            response = client.embeddings.create(
-                model=EMBEDDING_MODEL, input=[sentence1, sentence2]
-            )
-            get_response = True
-        except Exception as e:
-            rprint("[red][OPENAI ERROR][/red]:", e)
-            time.sleep(1)
-    embedding_1 = response.data[0].embedding
-    embedding_2 = response.data[1].embedding
-    score = 1 - spatial.distance.cosine(embedding_1, embedding_2)
-    if score > 0.9:
-        return True
-    else:
+    # Use local string similarity (difflib) instead of OpenAI embeddings so this
+    # works against any local endpoint without an embedding API.
+    import difflib
+    if not sentence1 or not sentence2:
         return False
+    ratio = difflib.SequenceMatcher(None, sentence1.lower(), sentence2.lower()).ratio()
+    return ratio > 0.9
