@@ -155,6 +155,23 @@ def main(variant):
         team = AgentGroup(*agents_list)
         team.reset()
 
+        # ICRL hook: if a pre-scored example pool is available, inject the
+        # formatted <example> blocks into every LLM agent's system prompt.
+        # The pool is written by run_icrl.py and passed via env var.
+        _icrl_pool = os.environ.get("ICRL_EXAMPLE_POOL", "")
+        if _icrl_pool:
+            _example_txt = _icrl_pool[:-5] + ".txt" if _icrl_pool.endswith(".jsonl") else _icrl_pool + ".txt"
+            try:
+                import pathlib
+                _blocks = pathlib.Path(_example_txt).read_text().strip()
+                if _blocks:
+                    _preamble = "\n\n--- ICL Examples from previous successful episodes ---\n"
+                    for _agent in team.agents:
+                        if hasattr(_agent, "planner") and hasattr(_agent.planner, "instruction_head_list"):
+                            _agent.planner.instruction_head_list[0]["content"] += _preamble + _blocks
+            except Exception as _e:
+                print(f"[ICRL] could not inject example pool ({_e})")
+
         env.reset()
         r_total = 0
 
