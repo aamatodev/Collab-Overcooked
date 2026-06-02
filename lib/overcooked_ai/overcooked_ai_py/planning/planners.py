@@ -1032,16 +1032,21 @@ class MediumLevelPlanner(object):
 
         if force_compute:
             return MediumLevelPlanner.compute_mlp(filename, mdp, mlp_params)
-        
-        try:
-            mlp = MediumLevelPlanner.from_action_manager_file(filename)
-        except (FileNotFoundError, ModuleNotFoundError, EOFError) as e:
-            print("Recomputing planner due to:", e)
-            return MediumLevelPlanner.compute_mlp(filename, mdp, mlp_params)
 
-        if mlp.ml_action_manager.params != mlp_params or mlp.mdp != mdp:
-            print("Mlp with different params or mdp found, computing from scratch")
-            return MediumLevelPlanner.compute_mlp(filename, mdp, mlp_params)
+        import fcntl, pickle
+        lock_path = os.path.join(PLANNERS_DIR, filename + ".lock")
+        with open(lock_path, 'w') as lf:
+            fcntl.flock(lf, fcntl.LOCK_EX)
+            try:
+                mlp = MediumLevelPlanner.from_action_manager_file(filename)
+            except (FileNotFoundError, ModuleNotFoundError, EOFError,
+                    pickle.UnpicklingError) as e:
+                print("Recomputing planner due to:", e)
+                return MediumLevelPlanner.compute_mlp(filename, mdp, mlp_params)
+
+            if mlp.ml_action_manager.params != mlp_params or mlp.mdp != mdp:
+                print("Mlp with different params or mdp found, computing from scratch")
+                return MediumLevelPlanner.compute_mlp(filename, mdp, mlp_params)
 
         print("Loaded MediumLevelPlanner from {}".format(os.path.join(PLANNERS_DIR, filename)))
         return mlp
