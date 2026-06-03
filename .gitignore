@@ -162,4 +162,7 @@ src/batch_run.sh
 
 src/embedding_cache.json
 
+# Generated experiment logs (runtime artifacts)
+src/data/
+
 
